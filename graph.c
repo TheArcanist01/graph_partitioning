@@ -11,6 +11,10 @@ typedef struct node {
     int Number;
     struct node **Connections;
 
+    // do Dijkstry
+    int Visited;
+    int *Distances;
+
 } node_t;
 
 // struktura grafu
@@ -43,12 +47,20 @@ node_t new_node (int Number, node_t **Connections) {
     NewNode.Number = Number;
     NewNode.Connections = Connections;
 
+    NewNode.Visited = 0;
+    int *Distances = malloc (128*sizeof(int));
+    for (int i = 0; i < 128; i++) {
+        Distances[i] = 999999;
+    }
+    NewNode.Distances = Distances;
+
     return NewNode;
 }
 
 void free_graph (graph_t *Graph) {
     for (int i = 0; i < (int) sizeof(Graph->NodeIndexes)/sizeof(int); i++) {
         free(Graph->Nodes[i].Connections);
+        free(Graph->Nodes[i].Distances);
     }
     free(Graph->Nodes);
     free(Graph);
@@ -193,6 +205,7 @@ graph_t *load_from_file (FILE *Stream) {
             CurrentNodeIndex++;
             CurrentNodeNumber++;
         }
+        NewGraphNodeIndexes[CurrentNodeNumber] = -1;
         NewGraphHeight++;
     }
     NewGraphHeight--;
@@ -227,6 +240,119 @@ graph_t *load_from_file (FILE *Stream) {
     return NewGraph;
 }
 
+// macierz sąsiedztwa
+
+typedef struct adj_mtx {
+
+    int Size;
+    int *Adjacencies;
+
+} adj_mtx_t;
+
+// zwraca liczbę węzłów w grafie
+int how_many_nodes(graph_t *Graph){
+    int size = 0;
+    while (Graph->NodeIndexes[size] != -1){
+        size++;
+    }
+    return size;
+}
+
+adj_mtx_t *generate_adj_mtx (graph_t *Graph) {
+
+    adj_mtx_t *NewMtx = malloc(sizeof(adj_mtx_t));
+
+    int GraphSize = how_many_nodes(Graph);
+    NewMtx->Size = GraphSize;
+
+    int *Adjacencies = calloc(GraphSize * GraphSize, sizeof(int));
+
+    /* for (int i = 0; i < GraphSize * GraphSize; i++) {
+        Adjacencies[i] = 0;
+    } */
+
+    for (int i = 0; i < GraphSize; i++) {
+
+        if (Graph->Nodes[i].Connections == NULL) {
+            continue;
+        }
+
+        int CurrentNode = 0;
+        while (Graph->Nodes[i].Connections[CurrentNode] != NULL) {
+            Adjacencies[GraphSize * Graph->Nodes[i].Number + Graph->Nodes[i].Connections[CurrentNode]->Number] = 1;
+            Adjacencies[GraphSize * Graph->Nodes[i].Connections[CurrentNode]->Number + Graph->Nodes[i].Number] = true;
+            CurrentNode++;
+        }
+    }
+
+    NewMtx->Adjacencies = Adjacencies;
+
+    return NewMtx;
+}
+
+void print_adj_mtx (adj_mtx_t *Mtx) {
+
+    printf("|  ");
+    for (int i = 0; i < Mtx->Size; i++) {
+        printf("|%2d", i);
+    }
+    printf("|\n");
+    for (int i = 0; i < Mtx->Size; i++) {
+        printf("|%2d", i);
+        for (int j = 0; j < Mtx->Size; j++) {
+            if (Mtx->Adjacencies[(Mtx->Size * i) + j] == 1) {
+                printf("|[]");
+            } else {
+                printf("|  ");
+            }
+        }
+        printf("|\n");
+    }
+}
+
+void Dijkstra (graph_t *Graph, int StartingNode, int NodeDistancesIndex) {
+    int VisitedNodes = 1;
+    Graph->Nodes[StartingNode].Visited = 1;
+    Graph->Nodes[StartingNode].Distances[NodeDistancesIndex] = 0;
+
+    adj_mtx_t *GraphAdjacencyMatrix = generate_adj_mtx(Graph);
+
+    while (VisitedNodes < GraphAdjacencyMatrix->Size) {
+        for (int i = 0; i < GraphAdjacencyMatrix->Size; i++) {
+            if (GraphAdjacencyMatrix->Adjacencies[StartingNode * GraphAdjacencyMatrix->Size + i] == 0) {
+                continue;
+            } else if (Graph->Nodes[i].Visited == 0 && Graph->Nodes[i].Distances[NodeDistancesIndex] > (Graph->Nodes[StartingNode].Distances[NodeDistancesIndex] + 1)) {
+                Graph->Nodes[i].Distances[NodeDistancesIndex] = (Graph->Nodes[StartingNode].Distances[NodeDistancesIndex] + 1);
+            }
+        }
+
+        int UnvisitedNodeIndex = 0;
+        for (int i = 0; i < GraphAdjacencyMatrix->Size; i++) {
+            if (Graph->Nodes[i].Visited == 0) {
+                UnvisitedNodeIndex = i;
+                break;
+            }
+        }
+
+        for (int i = 0; i < GraphAdjacencyMatrix->Size; i++) {
+            if (Graph->Nodes[i].Visited == false && Graph->Nodes[i].Distances[NodeDistancesIndex] < Graph->Nodes[UnvisitedNodeIndex].Distances[NodeDistancesIndex]) {
+                UnvisitedNodeIndex = i;
+            }
+        }
+
+        StartingNode = UnvisitedNodeIndex;
+        Graph->Nodes[StartingNode].Visited = 1;
+        VisitedNodes++;
+    }
+
+    for (int i = 0; i < GraphAdjacencyMatrix->Size; i++) {
+        Graph->Nodes[i].Visited = 0;
+    }
+
+    free(GraphAdjacencyMatrix->Adjacencies);
+    free(GraphAdjacencyMatrix);
+}
+
 // algorytm dzielący graf
 
 graph_t **partition_graph (graph_t *Graph, int PartitionCount, double ErrorMargin) {
@@ -236,13 +362,7 @@ graph_t **partition_graph (graph_t *Graph, int PartitionCount, double ErrorMargi
 // funkcje pomocnicze
 
 // funkcja zwraca dlugosc tablicy NodeIndexes
-int how_many_nodes(graph_t *Graph){
-    int size = 0;
-    while (Graph->NodeIndexes[size] != 0){
-        size++;
-    }
-    return size;
-}
+
 
 // zapis do pliku tekstowego
 void write_to_txt(graph_t *Graph){//, char *name){
@@ -362,9 +482,6 @@ void write_to_bin(graph_t *Graph){
 
 // TODO LIST
 
-// Dijkstra - Szymon
-    // tablica odległości
-// macierz sąsiedztwa - Szymon
 // podział - nie Szymon
 // main - na później
 // zwiększyć liczby w czytaniu z pliku - Szymon
@@ -377,6 +494,20 @@ int main (int argc, char **argv) {
     NewGraph = load_from_file(Stream);  
     fclose(Stream);
     print_graph(NewGraph);
+
+    adj_mtx_t *TestAdjMtx = generate_adj_mtx (NewGraph);
+
+    print_adj_mtx(TestAdjMtx);
+
+    Dijkstra(NewGraph, 0, 0);
+
+    //test
+    for (int i = 0; i < 12; i++) {
+        printf("%d dist %d\n", NewGraph->Nodes[i].Number, NewGraph->Nodes[i].Distances[0]);
+    }
+
+    free(TestAdjMtx->Adjacencies);
+    free(TestAdjMtx);
     
     write_to_txt(NewGraph);
 
