@@ -277,6 +277,7 @@ void write_to_txt(graph_t *Graph){//, char *name){
 }
 
 // dzieki temu kod jest bardziej przejrzysty
+// sprawdza czy jest na końcu tablicy
 int d (graph_t *Graph, int i, int j){
     if (Graph->Nodes[i].Connections != NULL && Graph->Nodes[i].Connections[j] != NULL){
         return 1;
@@ -358,6 +359,15 @@ void write_to_bin(graph_t *Graph){
 
 
 // main
+
+// TODO LIST
+
+// Dijkstra - Szymon
+    // tablica odległości
+// macierz sąsiedztwa - Szymon
+// podział - nie Szymon
+// main - na później
+// zwiększyć liczby w czytaniu z pliku - Szymon
 
 int main (int argc, char **argv) {
     //FILE *Stream = fopen("graf.csrrg", "r+");
